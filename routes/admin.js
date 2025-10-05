@@ -3,10 +3,29 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Admin = require('../models/Admin');
+const Contact = require('../models/Contact'); // <-- make sure this model exists
 
-// @route  POST api/admin/register
-// @desc   Register a new admin
-// @access Public (should be protected in a real app)
+// -----------------------------
+// 🔐 Middleware to verify JWT
+// -----------------------------
+const authMiddleware = (req, res, next) => {
+  const token = req.header('Authorization')?.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ msg: 'No token, authorization denied' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_default_secret');
+    req.admin = decoded.admin;
+    next();
+  } catch (err) {
+    res.status(401).json({ msg: 'Token is not valid' });
+  }
+};
+
+// -----------------------------
+// 🧾 Register Admin
+// -----------------------------
 router.post('/register', async (req, res) => {
   const { username, email, password } = req.body;
 
@@ -18,11 +37,7 @@ router.post('/register', async (req, res) => {
     }
 
     // Create new admin instance
-    admin = new Admin({
-      username,
-      email,
-      password,
-    });
+    admin = new Admin({ username, email, password });
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
@@ -32,26 +47,23 @@ router.post('/register', async (req, res) => {
     await admin.save();
 
     res.status(201).json({ msg: 'Admin registered successfully' });
-
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
   }
 });
 
-// @route  POST api/admin/login
-// @desc   Authenticate admin & get token
-// @access Public
-
-
+// -----------------------------
+// 🔑 Login Admin (email + password)
+// -----------------------------
 router.post('/login', async (req, res) => {
   const { email, password } = req.body; // frontend sends email + password
 
   try {
-    // Check if admin exists by either email or username (email prioritized)
+    // Find admin by email or username
     const admin = await Admin.findOne({
       $or: [
-        { email: new RegExp('^' + email + '$', 'i') }, // case-insensitive match
+        { email: new RegExp('^' + email + '$', 'i') },
         { username: new RegExp('^' + email + '$', 'i') }
       ]
     });
@@ -67,11 +79,9 @@ router.post('/login', async (req, res) => {
     }
 
     // Create JWT payload
-    const payload = {
-      admin: { id: admin.id },
-    };
+    const payload = { admin: { id: admin.id } };
 
-    // Sign and send token
+    // Sign and return token
     jwt.sign(
       payload,
       process.env.JWT_SECRET || 'your_default_secret',
@@ -87,5 +97,17 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// -----------------------------
+// 📬 Get All Contacts (Protected)
+// -----------------------------
+router.get('/contacts', authMiddleware, async (req, res) => {
+  try {
+    const contacts = await Contact.find().sort({ date: -1 });
+    res.json(contacts);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server Error');
+  }
+});
 
 module.exports = router;
