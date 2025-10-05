@@ -45,16 +45,14 @@ router.post('/register', async (req, res) => {
 
 
 router.post('/login', async (req, res) => {
-  // Front-end sends a single field, which we check against both username and email
-  const { username, email, password } = req.body;
-  const identifier = username || email;
+  const { email, password } = req.body; // frontend sends email + password
 
   try {
-    // Check if admin exists by username or email
+    // Check if admin exists by either email or username (email prioritized)
     const admin = await Admin.findOne({
       $or: [
-        { username: identifier },
-        { email: new RegExp('^' + identifier + '$', 'i') }
+        { email: new RegExp('^' + email + '$', 'i') }, // case-insensitive match
+        { username: new RegExp('^' + email + '$', 'i') }
       ]
     });
 
@@ -62,33 +60,32 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ msg: 'Invalid credentials' });
     }
 
-    // Check password
+    // Compare password
     const isMatch = await bcrypt.compare(password, admin.password);
     if (!isMatch) {
       return res.status(400).json({ msg: 'Invalid credentials' });
     }
 
-    // Create and sign JWT
+    // Create JWT payload
     const payload = {
-      admin: {
-        id: admin.id,
-      },
+      admin: { id: admin.id },
     };
 
+    // Sign and send token
     jwt.sign(
       payload,
-      process.env.JWT_SECRET || 'your_default_secret', // Use an environment variable for your secret
-      { expiresIn: 3600 }, // Token expires in 1 hour
+      process.env.JWT_SECRET || 'your_default_secret',
+      { expiresIn: '1h' },
       (err, token) => {
         if (err) throw err;
         res.json({ token });
       }
     );
-
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
   }
 });
+
 
 module.exports = router;
