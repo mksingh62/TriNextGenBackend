@@ -45,16 +45,19 @@ router.post('/register', async (req, res) => {
 
 
 router.post('/login', async (req, res) => {
-  const { username, password } = req.body; // Front-end sends a single field, which we check against both username and email
+  // Front-end sends a single field, which we check against both username and email
+  const { username, email, password } = req.body;
+  const identifier = username || email;
 
   try {
     // Check if admin exists by username or email
     const admin = await Admin.findOne({
       $or: [
-        { username: username },
-        { email: new RegExp('^' + username + '$', 'i') } // Case-insensitive email match
+        { username: identifier },
+        { email: new RegExp('^' + identifier + '$', 'i') }
       ]
     });
+
     if (!admin) {
       return res.status(400).json({ msg: 'Invalid credentials' });
     }
