@@ -42,6 +42,8 @@ router.post('/register', async (req, res) => {
 // @route  POST api/admin/login
 // @desc   Authenticate admin & get token
 // @access Public
+
+
 router.post('/login', async (req, res) => {
   const { username, password } = req.body; // Front-end sends a single field, which we check against both username and email
 
