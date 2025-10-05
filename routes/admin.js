@@ -39,6 +39,9 @@ router.post('/register', async (req, res) => {
   }
 });
 
+app.get('/hello', (req, res) => {
+  res.send('API is running');
+});
 // @route  POST api/admin/login
 // @desc   Authenticate admin & get token
 // @access Public
