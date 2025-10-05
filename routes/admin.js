@@ -49,7 +49,12 @@ router.post('/login', async (req, res) => {
 
   try {
     // Check if admin exists by username or email
-    const admin = await Admin.findOne({ $or: [{ username: username }, { email: username }] });
+    const admin = await Admin.findOne({
+      $or: [
+        { username: username },
+        { email: new RegExp('^' + username + '$', 'i') } // Case-insensitive email match
+      ]
+    });
     if (!admin) {
       return res.status(400).json({ msg: 'Invalid credentials' });
     }
