@@ -17,6 +17,7 @@ app.use(cors({
   ],
   credentials: true
 }));
+app.options('*', cors());
 app.use(express.json());
 
 // Database Connection (removed deprecated options)
