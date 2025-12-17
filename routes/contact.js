@@ -1,27 +1,16 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const Contact = require('../models/Contact');
+const Contact = require("../models/Contact");
+const connectDB = require("../db");
 
-// @route  POST api/contact
-// @desc   Save contact form data
-// @access Public
-router.post('/', async (req, res) => {
-  const { name, email, company, subject, message } = req.body;
-
+router.post("/", async (req, res) => {
   try {
-    const newContact = new Contact({
-      name,
-      email,
-      company,
-      subject,
-      message,
-    });
-
-    const contact = await newContact.save();
+    await connectDB();
+    const contact = new Contact(req.body);
+    await contact.save();
     res.json(contact);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ error: err.message });
   }
 });
 
