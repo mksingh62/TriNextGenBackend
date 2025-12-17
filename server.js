@@ -15,6 +15,7 @@ app.use(express.json());
 app.use("/api/contact", require("./routes/contact"));
 app.use("/api/services", require("./routes/serviceRoutes"));
 app.use("/api/careers", require("./routes/career"));
+app.use("/api/projects", require("./routes/projectRoutes"));
 app.use("/api/pages", require("./routes/pages"));
 app.use("/api/admin", require("./routes/admin"));
 
