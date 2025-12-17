@@ -1,112 +1,89 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const Admin = require('../models/Admin');
-const Contact = require('../models/Contact'); // <-- make sure this model exists
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const Admin = require("../models/Admin");
+const Contact = require("../models/Contact");
+const connectDB = require("../db");
 
-// -----------------------------
-// 🔐 Middleware to verify JWT
-// -----------------------------
+// 🔐 JWT Middleware
 const authMiddleware = (req, res, next) => {
-  const token = req.header('Authorization')?.split(' ')[1];
-  if (!token) {
-    return res.status(401).json({ msg: 'No token, authorization denied' });
-  }
+  const token = req.header("Authorization")?.split(" ")[1];
+  if (!token) return res.status(401).json({ msg: "No token provided" });
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_default_secret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.admin = decoded.admin;
     next();
-  } catch (err) {
-    res.status(401).json({ msg: 'Token is not valid' });
+  } catch {
+    res.status(401).json({ msg: "Invalid token" });
   }
 };
 
-// -----------------------------
 // 🧾 Register Admin
-// -----------------------------
-router.post('/register', async (req, res) => {
-  const { username, email, password } = req.body;
-
+router.post("/register", async (req, res) => {
   try {
-    // Check if admin already exists
+    await connectDB();
+
+    const { username, email, password } = req.body;
+
     let admin = await Admin.findOne({ $or: [{ username }, { email }] });
     if (admin) {
-      return res.status(400).json({ msg: 'Admin with this username or email already exists' });
+      return res.status(400).json({ msg: "Admin already exists" });
     }
 
-    // Create new admin instance
     admin = new Admin({ username, email, password });
 
-    // Hash password
     const salt = await bcrypt.genSalt(10);
     admin.password = await bcrypt.hash(password, salt);
 
-    // Save admin to DB
     await admin.save();
-
-    res.status(201).json({ msg: 'Admin registered successfully' });
+    res.status(201).json({ msg: "Admin registered successfully" });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ error: err.message });
   }
 });
 
-// -----------------------------
-// 🔑 Login Admin (email + password)
-// -----------------------------
-router.post('/login', async (req, res) => {
-  const { email, password } = req.body; // frontend sends email + password
-
+// 🔑 Login Admin
+router.post("/login", async (req, res) => {
   try {
-    // Find admin by email or username
+    await connectDB();
+
+    const { email, password } = req.body;
+
     const admin = await Admin.findOne({
       $or: [
-        { email: new RegExp('^' + email + '$', 'i') },
-        { username: new RegExp('^' + email + '$', 'i') }
-      ]
+        { email: new RegExp("^" + email + "$", "i") },
+        { username: new RegExp("^" + email + "$", "i") },
+      ],
     });
 
-    if (!admin) {
-      return res.status(400).json({ msg: 'Invalid credentials' });
-    }
+    if (!admin) return res.status(400).json({ msg: "Invalid credentials" });
 
-    // Compare password
     const isMatch = await bcrypt.compare(password, admin.password);
-    if (!isMatch) {
-      return res.status(400).json({ msg: 'Invalid credentials' });
-    }
+    if (!isMatch) return res.status(400).json({ msg: "Invalid credentials" });
 
-    // Create JWT payload
     const payload = { admin: { id: admin.id } };
 
-    // Sign and return token
     jwt.sign(
       payload,
-      process.env.JWT_SECRET || 'your_default_secret',
-      { expiresIn: '1h' },
-      (err, token) => {
-        if (err) throw err;
-        res.json({ token });
-      }
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" },
+      (err, token) => res.json({ token })
     );
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ error: err.message });
   }
 });
 
-// -----------------------------
-// 📬 Get All Contacts (Protected)
-// -----------------------------
-router.get('/contacts', authMiddleware, async (req, res) => {
+// 📬 Get Contacts
+router.get("/contacts", authMiddleware, async (req, res) => {
   try {
-    const contacts = await Contact.find().sort({ date: -1 });
+    await connectDB();
+    const contacts = await Contact.find().sort({ createdAt: -1 });
     res.json(contacts);
   } catch (err) {
-    console.error(err.message);
-    res.status(500).send('Server Error');
+    res.status(500).json({ error: err.message });
   }
 });
 
