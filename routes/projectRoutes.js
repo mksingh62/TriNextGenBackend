@@ -5,89 +5,79 @@ const Project = require("../models/Project");
 const connectDB = require("../db");
 
 // ===============================
-// MULTER CONFIG (NO EXTRA FOLDER)
+// MULTER CONFIG (VERCEL SAFE)
 // ===============================
-const storage = multer.memoryStorage();
-
 const upload = multer({
-  storage,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB max
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) {
-      cb(null, true);
-    } else {
-      cb(new Error("Only image files allowed"), false);
-    }
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only image files allowed"));
   },
 });
 
 // --------------------------------
-// GET all projects (Public)
+// GET all projects
 // --------------------------------
 router.get("/", async (req, res) => {
   try {
     await connectDB();
-    const projects = await Project.find({ status: "Active" }).sort({
-      createdAt: -1,
-    });
+    const projects = await Project.find().sort({ createdAt: -1 });
     res.json(projects);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
 // --------------------------------
-// GET single project by ID
-// --------------------------------
-router.get("/:id", async (req, res) => {
-  try {
-    await connectDB();
-    const project = await Project.findById(req.params.id);
-    if (!project) {
-      return res.status(404).json({ message: "Project not found" });
-    }
-    res.json(project);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// --------------------------------
-// CREATE project (WITH ICON IMAGE)
+// CREATE project
 // --------------------------------
 router.post("/", upload.single("icon"), async (req, res) => {
   try {
     await connectDB();
 
-    if (!req.file) {
-      return res.status(400).json({ message: "Icon image is required" });
+    const {
+      title,
+      description,
+      category,
+      liveUrl,
+      status = "Active",
+    } = req.body;
+
+    // ✅ REQUIRED VALIDATION
+    if (!title || !description || !category) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // ✅ ENUM SAFE
+    const allowedCategories = ["Web", "Mobile", "Cloud"];
+    if (!allowedCategories.includes(category)) {
+      return res.status(400).json({ message: "Invalid category" });
     }
 
     const project = new Project({
-      title: req.body.title,
-      description: req.body.description,
-      features: JSON.parse(req.body.features || "[]"),
-      techStack: JSON.parse(req.body.techStack || "[]"),
-      category: req.body.category,
-      liveUrl: req.body.liveUrl,
-      status: req.body.status || "Active",
-
-      // 🔥 IMAGE STORED AS BASE64
-      icon: `data:${req.file.mimetype};base64,${req.file.buffer.toString(
-        "base64"
-      )}`,
+      title,
+      description,
+      category,
+      liveUrl,
+      status,
+      features: safeParseArray(req.body.features),
+      techStack: safeParseArray(req.body.techStack),
+      icon: req.file
+        ? `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`
+        : null,
     });
 
     await project.save();
     res.status(201).json(project);
-  } catch (error) {
-    console.error(error);
-    res.status(400).json({ message: error.message });
+  } catch (err) {
+    console.error("CREATE PROJECT ERROR:", err);
+    res.status(400).json({ message: err.message });
   }
 });
 
 // --------------------------------
-// UPDATE project (icon optional)
+// UPDATE project
 // --------------------------------
 router.put("/:id", upload.single("icon"), async (req, res) => {
   try {
@@ -96,29 +86,26 @@ router.put("/:id", upload.single("icon"), async (req, res) => {
     const updateData = {
       title: req.body.title,
       description: req.body.description,
-      features: JSON.parse(req.body.features || "[]"),
-      techStack: JSON.parse(req.body.techStack || "[]"),
       category: req.body.category,
       liveUrl: req.body.liveUrl,
       status: req.body.status,
+      features: safeParseArray(req.body.features),
+      techStack: safeParseArray(req.body.techStack),
     };
 
-    // Agar naya icon upload hua hai
     if (req.file) {
-      updateData.icon = `data:${req.file.mimetype};base64,${req.file.buffer.toString(
-        "base64"
-      )}`;
+      updateData.icon = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
     }
 
     const project = await Project.findByIdAndUpdate(
       req.params.id,
       updateData,
-      { new: true }
+      { new: true, runValidators: true }
     );
 
     res.json(project);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 });
 
@@ -130,9 +117,21 @@ router.delete("/:id", async (req, res) => {
     await connectDB();
     await Project.findByIdAndDelete(req.params.id);
     res.json({ message: "Project deleted" });
-  } catch (error) {
-    res.status(400).json({ message: error.message });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 });
+
+// ===============================
+// SAFE JSON ARRAY PARSER
+// ===============================
+function safeParseArray(value) {
+  try {
+    if (!value) return [];
+    return Array.isArray(value) ? value : JSON.parse(value);
+  } catch {
+    return [];
+  }
+}
 
 module.exports = router;
