@@ -1,29 +1,26 @@
 const express = require("express");
 const router = express.Router();
-const Service = require("../models/service.js");
+const Service = require("../models/service");
+const connectDB = require("../db");
 
-// @route  GET api/services
-// @desc   Get all services
-// @access Public
 router.get("/", async (req, res) => {
   try {
+    await connectDB();
     const services = await Service.find();
     res.json(services);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
-// @route  POST api/services
-// @desc   Add a new service
-// @access Public
 router.post("/", async (req, res) => {
   try {
-    const newService = new Service(req.body);
-    await newService.save();
-    res.status(201).json(newService);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
+    await connectDB();
+    const service = new Service(req.body);
+    await service.save();
+    res.status(201).json(service);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 });
 
