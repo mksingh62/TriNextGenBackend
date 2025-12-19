@@ -7,13 +7,18 @@ const router = express.Router();
 
 const checkAdmin = async (req) => {
   try {
-    const token = req.headers.authorization?.split(" ")[1];
+    const auth = req.headers.authorization;
+    if (!auth || !auth.startsWith("Bearer ")) return null;
+
+    const token = auth.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    return await Admin.findOne({ email: decoded.email });
+
+    return await Admin.findById(decoded.id);
   } catch {
     return null;
   }
 };
+
 
 router.get("/:clientId", async (req, res) => {
   const admin = await checkAdmin(req);
