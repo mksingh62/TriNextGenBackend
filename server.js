@@ -19,6 +19,12 @@ app.use("/api/projects", require("./routes/projectRoutes"));
 app.use("/api/pages", require("./routes/pages"));
 app.use("/api/admin", require("./routes/admin"));
 
+const clientRoutes = require("./routes/clientRoutes");
+const clientProjectRoutes = require("./routes/clientProjectRoutes");
+
+app.use("/api/clients", clientRoutes);
+app.use("/api/client-projects", clientProjectRoutes);
+
 app.get("/", (req, res) => {
   res.json({ status: "API running on Vercel" });
 });
