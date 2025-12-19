@@ -145,17 +145,22 @@ router.post("/", async (req, res) => {
 
 
 
+// Replace your existing PUT and DELETE routes with these:
+
 /* ================= UPDATE PROJECT ================= */
-// URL: PUT /api/projects/:projectId
-router.put("/:projectId", adminAuth, async (req, res) => {
+router.put("/:projectId", async (req, res) => {
   try {
+    await connectDB();
+    const admin = await checkAdmin(req); // Use checkAdmin consistently
+    if (!admin) return res.status(401).json({ message: "Unauthorized" });
+
     const { projectId } = req.params;
     const updateData = req.body;
 
     const oldProject = await ClientProject.findById(projectId);
     if (!oldProject) return res.status(404).json({ message: "Project not found" });
 
-    // recalculate financials if amounts changed
+    // recalculate financials
     if (updateData.totalAmount !== undefined || updateData.advancePaid !== undefined) {
       const total = updateData.totalAmount !== undefined ? Number(updateData.totalAmount) : oldProject.totalAmount;
       const advance = updateData.advancePaid !== undefined ? Number(updateData.advancePaid) : oldProject.advancePaid;
@@ -176,40 +181,38 @@ router.put("/:projectId", adminAuth, async (req, res) => {
 
     res.json(updatedProject);
   } catch (err) {
+    console.error("Update error:", err);
     res.status(500).json({ message: "Update failed", error: err.message });
   }
 });
 
 /* ================= DELETE PROJECT ================= */
-// URL: DELETE /api/projects/:projectId
 router.delete("/:projectId", async (req, res) => {
   try {
     await connectDB();
     const admin = await checkAdmin(req);
     if (!admin) return res.status(401).json({ message: "Unauthorized" });
 
-    const projectId = req.params.projectId;
+    const { projectId } = req.params;
 
-    // 1. Find project first to get client ID and Amount
     const project = await ClientProject.findById(projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
 
-    // 2. Use Promise.all to ensure all cleanup tasks finish before sending response
-    await Promise.all([
-      Payment.deleteMany({ project: projectId }),
-      Client.findByIdAndUpdate(project.client, {
-        $inc: { totalEarnings: -project.totalAmount },
-      }),
-      ClientProject.findByIdAndDelete(projectId)
-    ]);
+    // Use a sequence to ensure the Client record is updated before project is gone
+    await Payment.deleteMany({ project: projectId });
+    
+    await Client.findByIdAndUpdate(project.client, {
+      $inc: { totalEarnings: -project.totalAmount },
+    });
 
-    return res.json({ message: "Deleted successfully" });
+    await ClientProject.findByIdAndDelete(projectId);
+
+    res.json({ message: "Deleted successfully" });
   } catch (err) {
-    console.error(err);
+    console.error("Delete error:", err);
     res.status(500).json({ message: "Server Error" });
   }
 });
-
 /* ================= UPDATE PROJECT STATUS ================= */
 router.patch("/:projectId/status", async (req, res) => {
   try {
