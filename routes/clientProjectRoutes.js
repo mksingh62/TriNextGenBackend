@@ -143,83 +143,66 @@ router.post("/", async (req, res) => {
   }
 });
 
+
+
 /* ================= UPDATE PROJECT ================= */
-router.put("/:projectId", async (req, res) => {
+// URL: PUT /api/projects/:projectId
+router.put("/:projectId", adminAuth, async (req, res) => {
   try {
-    await connectDB();
-    const admin = await checkAdmin(req);
-    if (!admin) {
-      return res.status(401).json({ message: "Unauthorized" });
+    const { projectId } = req.params;
+    const updateData = req.body;
+
+    const oldProject = await ClientProject.findById(projectId);
+    if (!oldProject) return res.status(404).json({ message: "Project not found" });
+
+    // recalculate financials if amounts changed
+    if (updateData.totalAmount !== undefined || updateData.advancePaid !== undefined) {
+      const total = updateData.totalAmount !== undefined ? Number(updateData.totalAmount) : oldProject.totalAmount;
+      const advance = updateData.advancePaid !== undefined ? Number(updateData.advancePaid) : oldProject.advancePaid;
+      updateData.remainingAmount = total - advance;
+
+      // Update client earnings if the total deal value changed
+      if (updateData.totalAmount !== undefined) {
+        const diff = Number(updateData.totalAmount) - oldProject.totalAmount;
+        await Client.findByIdAndUpdate(oldProject.client, { $inc: { totalEarnings: diff } });
+      }
     }
 
-    const oldProject = await ClientProject.findById(req.params.projectId);
-    if (!oldProject) {
-      return res.status(404).json({ message: "Project not found" });
-    }
-
-    // Calculate new remaining amount if total or advance changed
-    if (req.body.totalAmount !== undefined || req.body.advancePaid !== undefined) {
-      const totalAmount = req.body.totalAmount !== undefined 
-        ? Number(req.body.totalAmount)
-        : oldProject.totalAmount;
-      const advancePaid = req.body.advancePaid !== undefined 
-        ? Number(req.body.advancePaid)
-        : oldProject.advancePaid;
-      req.body.remainingAmount = totalAmount - advancePaid;
-    }
-
-    const project = await ClientProject.findByIdAndUpdate(
-      req.params.projectId,
-      req.body,
+    const updatedProject = await ClientProject.findByIdAndUpdate(
+      projectId,
+      { $set: updateData },
       { new: true, runValidators: true }
     );
 
-    // Update client total earnings if total amount changed
-    if (req.body.totalAmount !== undefined) {
-      const difference = Number(req.body.totalAmount) - oldProject.totalAmount;
-      await Client.findByIdAndUpdate(oldProject.client, {
-        $inc: { totalEarnings: difference },
-      });
-    }
-
-    res.json(project);
+    res.json(updatedProject);
   } catch (err) {
-    console.error("Update project error:", err);
-    res.status(500).json({ message: "Failed to update project" });
+    res.status(500).json({ message: "Update failed", error: err.message });
   }
 });
 
 /* ================= DELETE PROJECT ================= */
-router.delete("/:projectId", async (req, res) => {
+// URL: DELETE /api/projects/:projectId
+router.delete("/:projectId", adminAuth, async (req, res) => {
   try {
-    await connectDB();
-    const admin = await checkAdmin(req);
-    if (!admin) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+    const { projectId } = req.params;
 
-    const project = await ClientProject.findById(req.params.projectId);
-    if (!project) {
-      return res.status(404).json({ message: "Project not found" });
-    }
+    const project = await ClientProject.findById(projectId);
+    if (!project) return res.status(404).json({ message: "Project not found" });
 
-    // Delete associated payments
-    await Payment.deleteMany({ project: req.params.projectId });
+    // 1. Clean up payments
+    await Payment.deleteMany({ project: projectId });
 
-    // Update client total earnings (subtract project amount)
+    // 2. Revert client earnings
     await Client.findByIdAndUpdate(project.client, {
       $inc: { totalEarnings: -project.totalAmount },
     });
 
-    await ClientProject.findByIdAndDelete(req.params.projectId);
+    // 3. Delete the project
+    await ClientProject.findByIdAndDelete(projectId);
 
-    res.json({ 
-      message: "Project deleted successfully",
-      deletedProject: project 
-    });
+    res.json({ message: "Project and associated payments deleted" });
   } catch (err) {
-    console.error("Delete project error:", err);
-    res.status(500).json({ message: "Failed to delete project" });
+    res.status(500).json({ message: "Delete failed", error: err.message });
   }
 });
 
