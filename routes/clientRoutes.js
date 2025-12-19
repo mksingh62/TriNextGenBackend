@@ -6,20 +6,23 @@ const ClientProject = require("../models/ClientProject");
 
 const router = express.Router();
 
-/* ---------- ADMIN AUTH ---------- */
 const checkAdmin = async (req) => {
   try {
-    const auth = req.headers.authorization;
-    if (!auth || !auth.startsWith("Bearer ")) return null;
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return null;
+    }
 
-    const token = auth.split(" ")[1];
+    const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    return await Admin.findOne({ email: decoded.email });
-  } catch {
+    // ✅ USE ID (THIS MATCHES YOUR TOKEN)
+    return await Admin.findById(decoded.id);
+  } catch (err) {
     return null;
   }
 };
+
 
 /* ---------- CREATE CLIENT ---------- */
 router.post("/", async (req, res) => {
