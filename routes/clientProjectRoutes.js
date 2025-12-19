@@ -13,11 +13,14 @@ const checkAdmin = async (req) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    return await Admin.findById(decoded.id);
-  } catch {
+
+    // 🔥 FIX: use email instead of id
+    return await Admin.findOne({ email: decoded.email });
+  } catch (err) {
     return null;
   }
 };
+
 
 /* -------- CREATE CLIENT PROJECT -------- */
 router.post("/", async (req, res) => {
