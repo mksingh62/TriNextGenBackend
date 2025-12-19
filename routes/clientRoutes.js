@@ -7,7 +7,7 @@ const connectDB = require("../db");
 
 const router = express.Router();
 
-/* ========== ADMIN AUTH ========== */
+/* ================= ADMIN AUTH ================= */
 const checkAdmin = async (req) => {
   try {
     const auth = req.headers.authorization;
@@ -16,82 +16,123 @@ const checkAdmin = async (req) => {
     const token = auth.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    // ✅ ADMIN TOKEN PAYLOAD
     if (!decoded?.admin?.id) return null;
+
     return await Admin.findById(decoded.admin.id);
-  } catch {
+  } catch (err) {
+    console.error("Admin auth failed:", err.message);
     return null;
   }
 };
 
-/* ========== CLIENT CRUD ========== */
-
-// CREATE
+/* ================= CREATE CLIENT ================= */
 router.post("/", async (req, res) => {
-  await connectDB();
-  const admin = await checkAdmin(req);
-  if (!admin) return res.status(401).json({ message: "Unauthorized" });
+  try {
+    await connectDB();
 
-  const client = await Client.create(req.body);
-  res.json(client);
+    const admin = await checkAdmin(req);
+    if (!admin) return res.status(401).json({ message: "Unauthorized" });
+
+    const client = await Client.create(req.body);
+    res.status(201).json(client);
+  } catch (err) {
+    console.error("Create client error:", err);
+    res.status(500).json({ message: "Failed to create client" });
+  }
 });
 
-// GET ALL
+/* ================= GET ALL CLIENTS ================= */
 router.get("/", async (req, res) => {
-  await connectDB();
-  const admin = await checkAdmin(req);
-  if (!admin) return res.status(401).json([]);
+  try {
+    await connectDB();
 
-  const clients = await Client.find().sort({ createdAt: -1 });
-  res.json(clients);
+    const admin = await checkAdmin(req);
+    if (!admin) return res.status(401).json([]);
+
+    const clients = await Client.find().sort({ createdAt: -1 });
+
+    // 🔥 project count per client
+    const data = await Promise.all(
+      clients.map(async (c) => {
+        const count = await ClientProject.countDocuments({
+          client: c._id,
+        });
+        return { ...c.toObject(), projectsCount: count };
+      })
+    );
+
+    res.json(data);
+  } catch (err) {
+    console.error("Get clients error:", err);
+    res.status(500).json([]);
+  }
 });
 
-// GET ONE
-router.get("/:id", async (req, res) => {
-  await connectDB();
-  const admin = await checkAdmin(req);
-  if (!admin) return res.status(401).json({});
+/* ================= GET SINGLE CLIENT ================= */
+router.get("/:clientId", async (req, res) => {
+  try {
+    await connectDB();
 
-  const client = await Client.findById(req.params.id);
-  if (!client) return res.status(404).json({ message: "Not found" });
+    const admin = await checkAdmin(req);
+    if (!admin)
+      return res.status(401).json({ message: "Unauthorized" });
 
-  res.json(client);
+    const client = await Client.findById(req.params.clientId);
+    if (!client)
+      return res.status(404).json({ message: "Client not found" });
+
+    res.json(client);
+  } catch (err) {
+    console.error("Get client error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
-// UPDATE
-router.put("/:id", async (req, res) => {
-  await connectDB();
-  const admin = await checkAdmin(req);
-  if (!admin) return res.status(401).json({});
+/* ================= ADD PROJECT TO CLIENT ================= */
+router.post("/:clientId/projects", async (req, res) => {
+  try {
+    await connectDB();
 
-  const updated = await Client.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-  });
-  res.json(updated);
+    const admin = await checkAdmin(req);
+    if (!admin)
+      return res.status(401).json({ message: "Unauthorized" });
+
+    const project = await ClientProject.create({
+      ...req.body,
+      client: req.params.clientId,
+    });
+
+    // 🔥 update client earnings
+    await Client.findByIdAndUpdate(req.params.clientId, {
+      $inc: { totalEarnings: project.earnings || 0 },
+    });
+
+    res.status(201).json(project);
+  } catch (err) {
+    console.error("Add project error:", err);
+    res.status(500).json({ message: "Failed to add project" });
+  }
 });
 
-// DELETE
-router.delete("/:id", async (req, res) => {
-  await connectDB();
-  const admin = await checkAdmin(req);
-  if (!admin) return res.status(401).json({});
-
-  await Client.findByIdAndDelete(req.params.id);
-  res.json({ success: true });
-});
-
-/* ========== CLIENT PROJECTS ========== */
-
-// GET PROJECTS OF CLIENT
+/* ================= GET PROJECTS BY CLIENT ================= */
 router.get("/:clientId/projects", async (req, res) => {
-  await connectDB();
-  const admin = await checkAdmin(req);
-  if (!admin) return res.status(401).json({ message: "Unauthorized" });
+  try {
+    await connectDB();
 
-  const projects = await ClientProject.find({
-    client: req.params.clientId,
-  }).sort({ createdAt: -1 });
+    const admin = await checkAdmin(req);
+    if (!admin)
+      return res.status(401).json({ message: "Unauthorized" });
 
-  res.json(projects);
+    const projects = await ClientProject.find({
+      client: req.params.clientId,
+    }).sort({ createdAt: -1 });
+
+    res.json(projects);
+  } catch (err) {
+    console.error("Get projects error:", err);
+    res.status(500).json([]);
+  }
 });
 
 module.exports = router;
