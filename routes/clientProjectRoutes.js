@@ -182,27 +182,31 @@ router.put("/:projectId", adminAuth, async (req, res) => {
 
 /* ================= DELETE PROJECT ================= */
 // URL: DELETE /api/projects/:projectId
-router.delete("/:projectId", adminAuth, async (req, res) => {
+router.delete("/:projectId", async (req, res) => {
   try {
-    const { projectId } = req.params;
+    await connectDB();
+    const admin = await checkAdmin(req);
+    if (!admin) return res.status(401).json({ message: "Unauthorized" });
 
+    const projectId = req.params.projectId;
+
+    // 1. Find project first to get client ID and Amount
     const project = await ClientProject.findById(projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
 
-    // 1. Clean up payments
-    await Payment.deleteMany({ project: projectId });
+    // 2. Use Promise.all to ensure all cleanup tasks finish before sending response
+    await Promise.all([
+      Payment.deleteMany({ project: projectId }),
+      Client.findByIdAndUpdate(project.client, {
+        $inc: { totalEarnings: -project.totalAmount },
+      }),
+      ClientProject.findByIdAndDelete(projectId)
+    ]);
 
-    // 2. Revert client earnings
-    await Client.findByIdAndUpdate(project.client, {
-      $inc: { totalEarnings: -project.totalAmount },
-    });
-
-    // 3. Delete the project
-    await ClientProject.findByIdAndDelete(projectId);
-
-    res.json({ message: "Project and associated payments deleted" });
+    return res.json({ message: "Deleted successfully" });
   } catch (err) {
-    res.status(500).json({ message: "Delete failed", error: err.message });
+    console.error(err);
+    res.status(500).json({ message: "Server Error" });
   }
 });
 
