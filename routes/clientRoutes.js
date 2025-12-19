@@ -22,7 +22,7 @@ const checkAdmin = async (req, res) => {
 /* -------- CREATE CLIENT -------- */
 router.post("/", async (req, res) => {
   const admin = await checkAdmin(req, res);
-  if (!admin) return res.status(401).json({ message: "Unauthorized" });
+  if (!admin) return res.status(401).json([]);
 
   const client = await Client.create(req.body);
   res.json(client);
@@ -31,7 +31,7 @@ router.post("/", async (req, res) => {
 /* -------- GET ALL CLIENTS -------- */
 router.get("/", async (req, res) => {
   const admin = await checkAdmin(req, res);
-  if (!admin) return res.status(401).json({ message: "Unauthorized" });
+  if (!admin) return res.status(401).json([]);
 
   const clients = await Client.find().sort({ createdAt: -1 });
 
@@ -51,7 +51,7 @@ router.get("/", async (req, res) => {
 /* -------- GET SINGLE CLIENT -------- */
 router.get("/:id", async (req, res) => {
   const admin = await checkAdmin(req, res);
-  if (!admin) return res.status(401).json({ message: "Unauthorized" });
+  if (!admin) return res.status(401).json([]);
 
   const client = await Client.findById(req.params.id);
   if (!client) return res.status(404).json({ message: "Client not found" });
