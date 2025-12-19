@@ -61,4 +61,29 @@ router.get("/:id", async (req, res) => {
   res.json(client);
 });
 
+/* -------- UPDATE CLIENT -------- */
+router.put("/:id", async (req, res) => {
+  const admin = await checkAdmin(req);
+  if (!admin) return res.status(401).json({ message: "Unauthorized" });
+
+  const client = await Client.findByIdAndUpdate(
+    req.params.id,
+    req.body,
+    { new: true }
+  );
+
+  res.json(client);
+});
+
+/* -------- DELETE CLIENT -------- */
+router.delete("/:id", async (req, res) => {
+  const admin = await checkAdmin(req);
+  if (!admin) return res.status(401).json({ message: "Unauthorized" });
+
+  await Client.findByIdAndDelete(req.params.id);
+
+  res.json({ success: true });
+});
+
+
 module.exports = router;
