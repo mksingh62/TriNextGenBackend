@@ -7,14 +7,16 @@ const ClientProject = require("../models/ClientProject");
 const router = express.Router();
 
 /* -------- INLINE ADMIN AUTH -------- */
-const checkAdmin = async (req, res) => {
+const checkAdmin = async (req) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) return null;
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    return await Admin.findById(decoded.id);
-  } catch {
+
+    // 🔥 FIX: use email instead of id
+    return await Admin.findOne({ email: decoded.email });
+  } catch (err) {
     return null;
   }
 };
