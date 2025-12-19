@@ -1,3 +1,5 @@
+// FILE 1: models/Client.js
+// =====================================================
 const mongoose = require("mongoose");
 
 const ClientSchema = new mongoose.Schema(
@@ -7,7 +9,6 @@ const ClientSchema = new mongoose.Schema(
     phone: String,
     address: String,
     status: { type: String, default: "Active" },
-    advance: { type: Number, default: 0 },
     totalEarnings: { type: Number, default: 0 }
   },
   { timestamps: true }
