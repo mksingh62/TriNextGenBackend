@@ -5,20 +5,12 @@ const ClientProjectSchema = new mongoose.Schema(
     client: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Client",
-      required: true,
+      required: true
     },
-
-    title: { type: String, required: true },
-    description: String,
-
-    status: {
-      type: String,
-      enum: ["Active", "Completed", "On Hold"],
-      default: "Active",
-    },
-
+    title: String,
+    status: String,
     earnings: { type: Number, default: 0 },
-    liveUrl: String,
+    liveUrl: String
   },
   { timestamps: true }
 );
