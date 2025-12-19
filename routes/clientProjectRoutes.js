@@ -46,6 +46,28 @@ router.get("/", async (req, res) => {
   }
 });
 
+
+
+/* ================= GET PROJECTS BY CLIENT ================= */
+router.get("/client/:clientId", async (req, res) => {
+  try {
+    await connectDB();
+    const admin = await checkAdmin(req);
+    if (!admin) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const projects = await ClientProject.find({
+      client: req.params.clientId,
+    }).sort({ createdAt: -1 });
+    
+    res.json(projects);
+  } catch (err) {
+    console.error("Get client projects error:", err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
 /* ================= GET SINGLE PROJECT ================= */
 router.get("/:projectId", async (req, res) => {
   try {
@@ -65,26 +87,6 @@ router.get("/:projectId", async (req, res) => {
     res.json(project);
   } catch (err) {
     console.error("Get project error:", err);
-    res.status(500).json({ message: "Internal Server Error" });
-  }
-});
-
-/* ================= GET PROJECTS BY CLIENT ================= */
-router.get("/client/:clientId", async (req, res) => {
-  try {
-    await connectDB();
-    const admin = await checkAdmin(req);
-    if (!admin) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const projects = await ClientProject.find({
-      client: req.params.clientId,
-    }).sort({ createdAt: -1 });
-    
-    res.json(projects);
-  } catch (err) {
-    console.error("Get client projects error:", err);
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
