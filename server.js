@@ -23,6 +23,7 @@ app.use("/api/admin", require("./routes/admin"));
 
 /* 🔥 CLIENT ROUTES (SINGLE SOURCE OF TRUTH) */
 app.use("/api/clients", require("./routes/clientRoutes"));
+app.use("/api/clientProject", require("./routes/clientPRojectRoutes"));
 
 /* ================= HEALTH CHECK ================= */
 app.get("/", (req, res) => {
