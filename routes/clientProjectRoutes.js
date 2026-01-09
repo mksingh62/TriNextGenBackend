@@ -214,35 +214,6 @@ router.put("/:projectId", async (req, res) => {
   }
 });
 
-    // === Handle Requirements Update ===
-    if (updateData.requirements) {
-      updateData.requirements = updateData.requirements.map(req => ({
-        text: req.text?.trim() || "",
-        createdAt: req.createdAt ? new Date(req.createdAt) : new Date(),
-        files: Array.isArray(req.files) ? req.files : []
-      }));
-    }
-
-    // === Handle Dates ===
-    if (updateData.startDate) updateData.startDate = new Date(updateData.startDate);
-    if (updateData.deadline) updateData.deadline = new Date(updateData.deadline);
-
-    // === Perform Update ===
-    const updatedProject = await ClientProject.findByIdAndUpdate(
-      projectId,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    ).populate("client", "name email phone");
-
-    res.json(updatedProject);
-  } catch (err) {
-    console.error("Update project error:", err);
-    res.status(500).json({ 
-      message: "Update failed", 
-      error: err.message 
-    });
-  }
-});
 
 /* ================= DELETE PROJECT ================= */
 router.delete("/:projectId", async (req, res) => {
