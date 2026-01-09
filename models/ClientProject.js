@@ -3,7 +3,7 @@
 
 const mongoose = require("mongoose");
 
-// Sub-schema for individual files attached to a requirement
+// Sub-schema for project-level files (attachments)
 const fileSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -14,12 +14,12 @@ const fileSchema = new mongoose.Schema({
     required: true,
   },
   type: {
-    type: String, // MIME type, e.g., image/png, application/pdf
+    type: String, // MIME type, e.g., image/jpeg, application/pdf
     required: true,
   },
 });
 
-// Sub-schema for each requirement
+// Sub-schema for each requirement (NO files attached to individual requirements)
 const requirementSchema = new mongoose.Schema({
   text: {
     type: String,
@@ -30,7 +30,6 @@ const requirementSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-  files: [fileSchema], // Array of attached files (images, PDFs, docs, etc.)
 });
 
 const ClientProjectSchema = new mongoose.Schema(
@@ -84,8 +83,11 @@ const ClientProjectSchema = new mongoose.Schema(
     startDate: Date,
     deadline: Date,
 
-    // NEW: Requirements array
+    // Requirements (text only)
     requirements: [requirementSchema],
+
+    // NEW: Project-level attachments
+    projectFiles: [fileSchema],
   },
   { timestamps: true }
 );
@@ -96,9 +98,8 @@ ClientProjectSchema.pre("save", function (next) {
   next();
 });
 
-// Optional: Index for faster queries by client + status
+// Indexes
 ClientProjectSchema.index({ client: 1, status: 1 });
-// Optional: Text index for searching in title/description
 ClientProjectSchema.index({ title: "text", description: "text" });
 
 module.exports = mongoose.model("ClientProject", ClientProjectSchema);
