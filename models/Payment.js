@@ -1,4 +1,4 @@
-// FILE 3: models/Payment.js (NEW MODEL)
+// FILE: models/Payment.js
 // =====================================================
 const mongoose = require("mongoose");
 
@@ -12,16 +12,20 @@ const PaymentSchema = new mongoose.Schema(
     project: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "ClientProject",
-      required: true
+      required: false  // ← General payments ke liye optional
     },
     amount: { type: Number, required: true },
     paymentDate: { type: Date, required: true },
-    paymentMethod: { 
-      type: String, 
-      enum: ["Bank Transfer", "UPI", "Cash", "Cheque", "PayPal"],
-      default: "Bank Transfer" 
+    paymentMethod: {
+      type: String,
+      enum: ["Bank Transfer", "UPI", "Cash", "Cheque", "Card"],
+      default: "Bank Transfer"
     },
-    notes: String
+    notes: String,
+    screenshot: {
+      type: String,  // ← YEH ADD KARO!!!
+      default: null
+    }
   },
   { timestamps: true }
 );
