@@ -96,95 +96,129 @@ router.post("/", async (req, res) => {
   try {
     await connectDB();
     const admin = await checkAdmin(req);
-    if (!admin) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+    if (!admin) return res.status(401).json({ message: "Unauthorized" });
 
-    const { 
-      client,
-      title, 
-      totalAmount, 
-      advancePaid, 
-      status, 
-      liveUrl, 
-      description,
-      startDate,
-      deadline
-    } = req.body;
-
-    if (!client || !title || totalAmount === undefined) {
-      return res.status(400).json({ 
-        message: "Client, title and total amount are required" 
-      });
-    }
-
-    const remainingAmount = (totalAmount || 0) - (advancePaid || 0);
-
-    const project = await ClientProject.create({
+    const {
       client,
       title,
-      totalAmount: Number(totalAmount),
-      advancePaid: Number(advancePaid || 0),
-      remainingAmount,
-      status: status || "Active",
+      category = "Web App",              // new field
+      totalAmount,
+      advancePaid = 0,
+      status = "Active",
       liveUrl,
       description,
       startDate,
-      deadline
+      deadline,
+      requirements = []                   // ← requirements with files
+    } = req.body;
+
+    // Validation
+    if (!client || !title || totalAmount === undefined) {
+      return res.status(400).json({
+        message: "Client, title, and total amount are required"
+      });
+    }
+
+    const remainingAmount = Number(totalAmount) - Number(advancePaid);
+
+    // Create the project
+    const project = await ClientProject.create({
+      client,
+      title,
+      category,
+      totalAmount: Number(totalAmount),
+      advancePaid: Number(advancePaid),
+      remainingAmount,
+      status,
+      liveUrl,
+      description,
+      startDate: startDate ? new Date(startDate) : undefined,
+      deadline: deadline ? new Date(deadline) : undefined,
+      requirements // ← saved directly (includes text, createdAt, files with base64)
     });
 
-    // Update client total earnings
+    // Update client's total earnings
     await Client.findByIdAndUpdate(client, {
-      $inc: { totalEarnings: Number(totalAmount) },
+      $inc: { totalEarnings: Number(totalAmount) }
     });
 
-    res.status(201).json(project);
+    // Return populated project
+    const populatedProject = await ClientProject.findById(project._id)
+      .populate("client", "name email phone");
+
+    res.status(201).json(populatedProject);
   } catch (err) {
     console.error("Create project error:", err);
-    res.status(500).json({ message: "Failed to create project" });
+    res.status(500).json({ 
+      message: "Failed to create project", 
+      error: err.message 
+    });
   }
 });
-
-
-
-// Replace your existing PUT and DELETE routes with these:
 
 /* ================= UPDATE PROJECT ================= */
 router.put("/:projectId", async (req, res) => {
   try {
     await connectDB();
-    const admin = await checkAdmin(req); // Use checkAdmin consistently
+    const admin = await checkAdmin(req);
     if (!admin) return res.status(401).json({ message: "Unauthorized" });
 
     const { projectId } = req.params;
-    const updateData = req.body;
+    let updateData = { ...req.body };
 
     const oldProject = await ClientProject.findById(projectId);
-    if (!oldProject) return res.status(404).json({ message: "Project not found" });
+    if (!oldProject) {
+      return res.status(404).json({ message: "Project not found" });
+    }
 
-    // recalculate financials
+    // === Handle Financial Updates ===
     if (updateData.totalAmount !== undefined || updateData.advancePaid !== undefined) {
-      const total = updateData.totalAmount !== undefined ? Number(updateData.totalAmount) : oldProject.totalAmount;
-      const advance = updateData.advancePaid !== undefined ? Number(updateData.advancePaid) : oldProject.advancePaid;
-      updateData.remainingAmount = total - advance;
+      const newTotal = updateData.totalAmount !== undefined 
+        ? Number(updateData.totalAmount) 
+        : oldProject.totalAmount;
 
-      // Update client earnings if the total deal value changed
+      const newAdvance = updateData.advancePaid !== undefined 
+        ? Number(updateData.advancePaid) 
+        : oldProject.advancePaid;
+
+      updateData.remainingAmount = newTotal - newAdvance;
+
+      // Adjust client totalEarnings if totalAmount changed
       if (updateData.totalAmount !== undefined) {
-        const diff = Number(updateData.totalAmount) - oldProject.totalAmount;
-        await Client.findByIdAndUpdate(oldProject.client, { $inc: { totalEarnings: diff } });
+        const diff = newTotal - oldProject.totalAmount;
+        await Client.findByIdAndUpdate(oldProject.client, {
+          $inc: { totalEarnings: diff }
+        });
       }
     }
 
+    // === Handle Requirements Update ===
+    if (updateData.requirements) {
+      updateData.requirements = updateData.requirements.map(req => ({
+        text: req.text?.trim() || "",
+        createdAt: req.createdAt ? new Date(req.createdAt) : new Date(),
+        files: Array.isArray(req.files) ? req.files : []
+      }));
+    }
+
+    // === Handle Dates ===
+    if (updateData.startDate) updateData.startDate = new Date(updateData.startDate);
+    if (updateData.deadline) updateData.deadline = new Date(updateData.deadline);
+
+    // === Perform Update ===
     const updatedProject = await ClientProject.findByIdAndUpdate(
       projectId,
       { $set: updateData },
       { new: true, runValidators: true }
-    );
+    ).populate("client", "name email phone");
 
     res.json(updatedProject);
   } catch (err) {
-    console.error("Update error:", err);
-    res.status(500).json({ message: "Update failed", error: err.message });
+    console.error("Update project error:", err);
+    res.status(500).json({ 
+      message: "Update failed", 
+      error: err.message 
+    });
   }
 });
 
