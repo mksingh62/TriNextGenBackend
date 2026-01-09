@@ -101,7 +101,7 @@ router.post("/", async (req, res) => {
     const {
       client,
       title,
-      category = "Web App",              // new field
+      category = "Web App",
       totalAmount,
       advancePaid = 0,
       status = "Active",
@@ -109,10 +109,10 @@ router.post("/", async (req, res) => {
       description,
       startDate,
       deadline,
-      requirements = []                   // ← requirements with files
+      requirements = [],
+      projectFiles = [] // ← Accept project-level files
     } = req.body;
 
-    // Validation
     if (!client || !title || totalAmount === undefined) {
       return res.status(400).json({
         message: "Client, title, and total amount are required"
@@ -121,7 +121,6 @@ router.post("/", async (req, res) => {
 
     const remainingAmount = Number(totalAmount) - Number(advancePaid);
 
-    // Create the project
     const project = await ClientProject.create({
       client,
       title,
@@ -134,25 +133,24 @@ router.post("/", async (req, res) => {
       description,
       startDate: startDate ? new Date(startDate) : undefined,
       deadline: deadline ? new Date(deadline) : undefined,
-      requirements // ← saved directly (includes text, createdAt, files with base64)
+      requirements: requirements.map(r => ({
+        text: r.text,
+        createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
+      })),
+      projectFiles // ← Save project-level files directly
     });
 
-    // Update client's total earnings
     await Client.findByIdAndUpdate(client, {
       $inc: { totalEarnings: Number(totalAmount) }
     });
 
-    // Return populated project
     const populatedProject = await ClientProject.findById(project._id)
       .populate("client", "name email phone");
 
     res.status(201).json(populatedProject);
   } catch (err) {
     console.error("Create project error:", err);
-    res.status(500).json({ 
-      message: "Failed to create project", 
-      error: err.message 
-    });
+    res.status(500).json({ message: "Failed to create project", error: err.message });
   }
 });
 
@@ -167,30 +165,53 @@ router.put("/:projectId", async (req, res) => {
     let updateData = { ...req.body };
 
     const oldProject = await ClientProject.findById(projectId);
-    if (!oldProject) {
-      return res.status(404).json({ message: "Project not found" });
-    }
+    if (!oldProject) return res.status(404).json({ message: "Project not found" });
 
-    // === Handle Financial Updates ===
+    // Financial updates
     if (updateData.totalAmount !== undefined || updateData.advancePaid !== undefined) {
-      const newTotal = updateData.totalAmount !== undefined 
-        ? Number(updateData.totalAmount) 
-        : oldProject.totalAmount;
-
-      const newAdvance = updateData.advancePaid !== undefined 
-        ? Number(updateData.advancePaid) 
-        : oldProject.advancePaid;
-
+      const newTotal = updateData.totalAmount !== undefined ? Number(updateData.totalAmount) : oldProject.totalAmount;
+      const newAdvance = updateData.advancePaid !== undefined ? Number(updateData.advancePaid) : oldProject.advancePaid;
       updateData.remainingAmount = newTotal - newAdvance;
 
-      // Adjust client totalEarnings if totalAmount changed
       if (updateData.totalAmount !== undefined) {
         const diff = newTotal - oldProject.totalAmount;
-        await Client.findByIdAndUpdate(oldProject.client, {
-          $inc: { totalEarnings: diff }
-        });
+        await Client.findByIdAndUpdate(oldProject.client, { $inc: { totalEarnings: diff } });
       }
     }
+
+    // Handle requirements (text only)
+    if (updateData.requirements) {
+      updateData.requirements = updateData.requirements.map(r => ({
+        text: r.text?.trim() || "",
+        createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
+      }));
+    }
+
+    // Handle projectFiles
+    if (updateData.projectFiles) {
+      updateData.projectFiles = updateData.projectFiles.map(file => ({
+        name: file.name,
+        data: file.data,
+        type: file.type,
+      }));
+    }
+
+    // Handle dates
+    if (updateData.startDate) updateData.startDate = new Date(updateData.startDate);
+    if (updateData.deadline) updateData.deadline = new Date(updateData.deadline);
+
+    const updatedProject = await ClientProject.findByIdAndUpdate(
+      projectId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    ).populate("client", "name email phone");
+
+    res.json(updatedProject);
+  } catch (err) {
+    console.error("Update project error:", err);
+    res.status(500).json({ message: "Update failed", error: err.message });
+  }
+});
 
     // === Handle Requirements Update ===
     if (updateData.requirements) {
