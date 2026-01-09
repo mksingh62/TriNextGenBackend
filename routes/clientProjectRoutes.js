@@ -167,7 +167,7 @@ router.put("/:projectId", async (req, res) => {
     const oldProject = await ClientProject.findById(projectId);
     if (!oldProject) return res.status(404).json({ message: "Project not found" });
 
-    // Financial updates
+    // === Handle Financial Updates ===
     if (updateData.totalAmount !== undefined || updateData.advancePaid !== undefined) {
       const newTotal = updateData.totalAmount !== undefined ? Number(updateData.totalAmount) : oldProject.totalAmount;
       const newAdvance = updateData.advancePaid !== undefined ? Number(updateData.advancePaid) : oldProject.advancePaid;
@@ -179,7 +179,7 @@ router.put("/:projectId", async (req, res) => {
       }
     }
 
-    // Handle requirements (text only)
+    // === Handle Requirements (text only) ===
     if (updateData.requirements) {
       updateData.requirements = updateData.requirements.map(r => ({
         text: r.text?.trim() || "",
@@ -187,7 +187,7 @@ router.put("/:projectId", async (req, res) => {
       }));
     }
 
-    // Handle projectFiles
+    // === Handle Project Files ===
     if (updateData.projectFiles) {
       updateData.projectFiles = updateData.projectFiles.map(file => ({
         name: file.name,
@@ -196,10 +196,11 @@ router.put("/:projectId", async (req, res) => {
       }));
     }
 
-    // Handle dates
+    // === Handle Dates ===
     if (updateData.startDate) updateData.startDate = new Date(updateData.startDate);
     if (updateData.deadline) updateData.deadline = new Date(updateData.deadline);
 
+    // === Perform Update ===
     const updatedProject = await ClientProject.findByIdAndUpdate(
       projectId,
       { $set: updateData },
